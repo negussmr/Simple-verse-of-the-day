@@ -1,4 +1,4 @@
-// ===== 📚 VERSES (fallback) =====
+// ===== 📚 FALLBACK VERSES (used if API fails) =====
 const verses = [
   { text: "The Lord is my shepherd; I shall not want.", ref: "Psalm 23:1" },
   { text: "For God so loved the world that He gave His only Son.", ref: "John 3:16" },
@@ -12,9 +12,12 @@ const verses = [
   { text: "The Lord is my light and my salvation.", ref: "Psalm 27:1" },
   { text: "Trust in the Lord with all your heart.", ref: "Proverbs 3:5" },
   { text: "Peace I leave with you; my peace I give you.", ref: "John 14:27" },
+  { text: "The Lord is near to all who call on him.", ref: "Psalm 145:18" },
+  { text: "Be strong and courageous. Do not be afraid.", ref: "Joshua 1:9" },
+  { text: "The Lord watches over you.", ref: "Psalm 121:5" },
 ];
 
-// ===== GET TODAY'S VERSE =====
+// ===== GET TODAY'S VERSE FROM FALLBACK LIST =====
 function getTodayVerse() {
   const today = new Date();
   const dayOfYear = Math.floor((today - new Date(today.getFullYear(), 0, 0)) / (1000 * 60 * 60 * 24));
@@ -23,19 +26,52 @@ function getTodayVerse() {
 
 // ===== FETCH REAL VERSE OF THE DAY =====
 async function fetchVerseOfTheDay() {
-  try {
-    const response = await fetch('https://beta.ourmanna.com/api/v1/get/?format=json');
-    if (!response.ok) throw new Error('Network error');
-    const data = await response.json();
-    const verse = data.verse;
-    return {
-      text: verse.text,
-      ref: `${verse.book} ${verse.chapter}:${verse.verse}`
-    };
-  } catch (error) {
-    console.warn('Using fallback verse:', error);
-    return getTodayVerse();
+  // Try multiple APIs in order
+  const apis = [
+    {
+      url: 'https://labs.bible.org/api/?passage=random&type=json',
+      parse: (data) => {
+        if (Array.isArray(data) && data.length > 0) {
+          return {
+            text: data[0].text,
+            ref: `${data[0].bookname} ${data[0].chapter}:${data[0].verse}`
+          };
+        }
+        throw new Error('Invalid response');
+      }
+    },
+    {
+      url: 'https://beta.ourmanna.com/api/v1/get/?format=json',
+      parse: (data) => {
+        if (data && data.verse) {
+          return {
+            text: data.verse.text,
+            ref: `${data.verse.book} ${data.verse.chapter}:${data.verse.verse}`
+          };
+        }
+        throw new Error('Invalid response');
+      }
+    }
+  ];
+
+  for (const api of apis) {
+    try {
+      const response = await fetch(api.url);
+      if (!response.ok) throw new Error('Network error');
+      const data = await response.json();
+      const result = api.parse(data);
+      if (result && result.text && result.text !== 'undefined') {
+        console.log('✅ Fetched from:', api.url);
+        return result;
+      }
+    } catch (error) {
+      console.warn('API failed, trying next...', error);
+    }
   }
+
+  // If all APIs fail, use fallback
+  console.warn('All APIs failed, using fallback verse');
+  return getTodayVerse();
 }
 
 // ===== STREAK LOGIC =====
@@ -130,8 +166,17 @@ async function setVerse() {
   refEl.textContent = '—';
 
   const verse = await fetchVerseOfTheDay();
-  verseEl.textContent = verse.text;
-  refEl.textContent = `— ${verse.ref}`;
+  
+  // Make sure we have valid data
+  if (verse && verse.text && verse.text !== 'undefined') {
+    verseEl.textContent = verse.text;
+    refEl.textContent = `— ${verse.ref}`;
+  } else {
+    // Emergency fallback
+    const fallback = getTodayVerse();
+    verseEl.textContent = fallback.text;
+    refEl.textContent = `— ${fallback.ref}`;
+  }
 
   verseEl.classList.remove('fade');
   void verseEl.offsetWidth;
