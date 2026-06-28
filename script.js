@@ -1,4 +1,4 @@
-// ===== 📖 REAL VERSE OF THE DAY (No pre-determined list) =====
+// ===== 📖 REAL VERSE OF THE DAY (Forces fresh verse daily) =====
 
 // ===== FETCH REAL VERSE OF THE DAY =====
 async function fetchVerse() {
@@ -10,10 +10,14 @@ async function fetchVerse() {
   refEl.textContent = '—';
   
   try {
-    // Try multiple free Verse of the Day APIs
+    // Use day of year to pick a different API source each day
+    const today = new Date();
+    const dayOfYear = Math.floor((today - new Date(today.getFullYear(), 0, 0)) / (1000 * 60 * 60 * 24));
+    
+    // List of FREE APIs that return different verses
     const apis = [
       {
-        // OurManna - specifically designed for Verse of the Day
+        // OurManna - Verse of the Day
         url: 'https://beta.ourmanna.com/api/v1/get/?format=json',
         parse: (data) => {
           if (data && data.verse && data.verse.details) {
@@ -26,20 +30,7 @@ async function fetchVerse() {
         }
       },
       {
-        // Bible.org - has a votd (verse of the day) parameter
-        url: 'https://corsproxy.io/?https://labs.bible.org/api/?passage=votd&type=json',
-        parse: (data) => {
-          if (Array.isArray(data) && data.length > 0) {
-            return {
-              text: data[0].text,
-              ref: `${data[0].bookname} ${data[0].chapter}:${data[0].verse}`
-            };
-          }
-          return null;
-        }
-      },
-      {
-        // GetBible.net - free verse of the day
+        // GetBible.net - Verse of the Day (different source)
         url: 'https://getbible.net/votd/json',
         parse: (data) => {
           if (data && data.verse) {
@@ -50,33 +41,39 @@ async function fetchVerse() {
           }
           return null;
         }
+      },
+      {
+        // DailyVerse - Another free API
+        url: 'https://dailyverse.vercel.app/api/verse',
+        parse: (data) => {
+          if (data && data.verse) {
+            return {
+              text: data.verse,
+              ref: data.reference || 'Unknown'
+            };
+          }
+          return null;
+        }
       }
     ];
     
-    let verseData = null;
+    // Pick a different API each day (rotates through them)
+    const apiIndex = dayOfYear % apis.length;
+    const selectedApi = apis[apiIndex];
     
-    // Try each API until one works
-    for (const api of apis) {
-      try {
-        console.log('📖 Trying API:', api.url);
-        const response = await fetch(api.url);
-        
-        if (!response.ok) continue;
-        
-        const data = await response.json();
-        const result = api.parse(data);
-        
-        if (result && result.text && result.text !== 'undefined' && result.text.length > 0) {
-          verseData = result;
-          console.log('✅ Success! Using API:', api.url);
-          break;
-        }
-      } catch (error) {
-        console.warn('API failed, trying next...');
-      }
+    console.log(`📖 Day ${dayOfYear}: Trying API ${apiIndex + 1} of ${apis.length}`);
+    console.log('📖 URL:', selectedApi.url);
+    
+    const response = await fetch(selectedApi.url);
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
     
-    if (verseData) {
+    const data = await response.json();
+    const verseData = selectedApi.parse(data);
+    
+    if (verseData && verseData.text && verseData.text !== 'undefined' && verseData.text.length > 0) {
       // Display the verse
       verseEl.textContent = verseData.text;
       refEl.textContent = `— ${verseData.ref}`;
@@ -85,10 +82,10 @@ async function fetchVerse() {
       verseEl.classList.remove('fade');
       void verseEl.offsetWidth;
       verseEl.classList.add('fade');
+      
+      console.log('✅ Displayed:', verseData.ref);
     } else {
-      // If ALL APIs fail, use fallback
-      console.warn('All APIs failed, using fallback');
-      useFallbackVerse();
+      throw new Error('No verse data');
     }
     
   } catch (error) {
