@@ -1,53 +1,7 @@
-// ===== 🔑 CONFIGURATION =====
-const API_KEY = 'HCBQOdBb4QoA483Dt_t53'; // Replace with your actual API key
-const BIBLE_ID = '61fd76eafa1577c2-02'; // KJV Bible ID
-const VERSES = [
-  'JER.29.11',
-  'PSA.23',
-  '1COR.4.4-8',
-  'PHP.4.13',
-  'JHN.3.16',
-  'ROM.8.28',
-  'ISA.41.10',
-  'PSA.46.1',
-  'GAL.5.22-23',
-  'HEB.11.1',
-  '2TI.1.7',
-  '1COR.10.13',
-  'PRO.22.6',
-  'ISA.40.31',
-  'JOS.1.9',
-  'HEB.12.2',
-  'MAT.11.28',
-  'ROM.10.9-10',
-  'PHP.2.3-4',
-  'MAT.5.43-44',
-  'PSA.27.1',
-  'PSA.121.1-2',
-  'ISA.43.2',
-  'DEU.31.6',
-  'JOS.1.9',
-  'PSA.34.18',
-  'PSA.147.3',
-  'ISA.40.29',
-  'PSA.55.22',
-  'PRO.3.5-6',
-  'MAT.6.33'
-];
+// ===== 📖 REAL VERSE OF THE DAY (No pre-determined list) =====
 
-// ===== 📅 GET TODAY'S VERSE (Same verse for everyone today) =====
-function getTodaysVerseIndex() {
-  const today = new Date();
-  // Use day of month (1-31) to pick a verse
-  // Everyone sees the SAME verse on the SAME day
-  const dayOfMonth = today.getDate() - 1; // 0-30
-  return dayOfMonth % VERSES.length;
-}
-
-// ===== 📖 FETCH VERSE FROM API.BIBLE =====
+// ===== FETCH REAL VERSE OF THE DAY =====
 async function fetchVerse() {
-  const verseIndex = getTodaysVerseIndex();
-  const verseID = VERSES[verseIndex];
   const verseEl = document.getElementById('verseText');
   const refEl = document.getElementById('verseRef');
   
@@ -56,70 +10,124 @@ async function fetchVerse() {
   refEl.textContent = '—';
   
   try {
-    const response = await fetch(
-      `https://api.scripture.api.bible/v1/bibles/${BIBLE_ID}/search?query=${verseID}`,
+    // Try multiple free Verse of the Day APIs
+    const apis = [
       {
-        headers: {
-          'api-key': API_KEY,
-          'Accept': 'application/json'
+        // OurManna - specifically designed for Verse of the Day
+        url: 'https://beta.ourmanna.com/api/v1/get/?format=json',
+        parse: (data) => {
+          if (data && data.verse && data.verse.details) {
+            return {
+              text: data.verse.details.text,
+              ref: data.verse.details.reference
+            };
+          }
+          return null;
+        }
+      },
+      {
+        // Bible.org - has a votd (verse of the day) parameter
+        url: 'https://corsproxy.io/?https://labs.bible.org/api/?passage=votd&type=json',
+        parse: (data) => {
+          if (Array.isArray(data) && data.length > 0) {
+            return {
+              text: data[0].text,
+              ref: `${data[0].bookname} ${data[0].chapter}:${data[0].verse}`
+            };
+          }
+          return null;
+        }
+      },
+      {
+        // GetBible.net - free verse of the day
+        url: 'https://getbible.net/votd/json',
+        parse: (data) => {
+          if (data && data.verse) {
+            return {
+              text: data.verse,
+              ref: data.reference
+            };
+          }
+          return null;
         }
       }
-    );
+    ];
     
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+    let verseData = null;
+    
+    // Try each API until one works
+    for (const api of apis) {
+      try {
+        console.log('📖 Trying API:', api.url);
+        const response = await fetch(api.url);
+        
+        if (!response.ok) continue;
+        
+        const data = await response.json();
+        const result = api.parse(data);
+        
+        if (result && result.text && result.text !== 'undefined' && result.text.length > 0) {
+          verseData = result;
+          console.log('✅ Success! Using API:', api.url);
+          break;
+        }
+      } catch (error) {
+        console.warn('API failed, trying next...');
+      }
     }
     
-    const data = await response.json();
-    
-    // Extract verse text and reference
-    if (data && data.data && data.data.passages && data.data.passages.length > 0) {
-      const passage = data.data.passages[0];
-      
-      // Clean up the text (remove HTML tags if any)
-      let verseText = passage.text;
-      // Remove any HTML tags
-      verseText = verseText.replace(/<[^>]*>/g, '');
-      // Remove extra whitespace
-      verseText = verseText.replace(/\s+/g, ' ').trim();
-      
-      // Get the reference (book, chapter, verse)
-      const reference = passage.reference || verseID;
-      
-      verseEl.textContent = verseText;
-      refEl.textContent = `— ${reference}`;
+    if (verseData) {
+      // Display the verse
+      verseEl.textContent = verseData.text;
+      refEl.textContent = `— ${verseData.ref}`;
       
       // Animate
       verseEl.classList.remove('fade');
       void verseEl.offsetWidth;
       verseEl.classList.add('fade');
-      
-      console.log('✅ Verse loaded:', reference);
     } else {
-      throw new Error('No passage found in response');
+      // If ALL APIs fail, use fallback
+      console.warn('All APIs failed, using fallback');
+      useFallbackVerse();
     }
+    
   } catch (error) {
-    console.error('❌ Error fetching verse:', error);
-    // Fallback verses if API fails
-    const fallbackVerses = [
-      { text: "The Lord is my shepherd; I shall not want.", ref: "Psalm 23:1" },
-      { text: "For God so loved the world that He gave His only Son.", ref: "John 3:16" },
-      { text: "I can do all things through Christ who strengthens me.", ref: "Philippians 4:13" },
-      { text: "Be still, and know that I am God.", ref: "Psalm 46:10" },
-      { text: "The Lord bless you and keep you.", ref: "Numbers 6:24" },
-      { text: "Your word is a lamp to my feet and a light to my path.", ref: "Psalm 119:105" },
-      { text: "Love is patient, love is kind.", ref: "1 Corinthians 13:4" },
-      { text: "Do not fear, for I am with you.", ref: "Isaiah 41:10" },
-      { text: "Rejoice in the Lord always.", ref: "Philippians 4:4" },
-      { text: "The Lord is my light and my salvation.", ref: "Psalm 27:1" },
-    ];
-    const fallback = fallbackVerses[verseIndex % fallbackVerses.length];
-    verseEl.textContent = fallback.text;
-    refEl.textContent = `— ${fallback.ref}`;
-    verseEl.classList.remove('fade');
-    void verseEl.offsetWidth;
-    verseEl.classList.add('fade');
+    console.error('❌ Error:', error);
+    useFallbackVerse();
   }
+}
+
+// ===== 📚 FALLBACK (Only used if ALL APIs fail) =====
+function useFallbackVerse() {
+  const verseEl = document.getElementById('verseText');
+  const refEl = document.getElementById('verseRef');
+  
+  // These are ONLY used if the API completely fails
+  const fallbackVerses = [
+    { text: "The Lord is my shepherd; I shall not want.", ref: "Psalm 23:1" },
+    { text: "For God so loved the world that He gave His only Son.", ref: "John 3:16" },
+    { text: "I can do all things through Christ who strengthens me.", ref: "Philippians 4:13" },
+    { text: "Be still, and know that I am God.", ref: "Psalm 46:10" },
+    { text: "The Lord bless you and keep you.", ref: "Numbers 6:24" },
+    { text: "Your word is a lamp to my feet and a light to my path.", ref: "Psalm 119:105" },
+    { text: "Love is patient, love is kind.", ref: "1 Corinthians 13:4" },
+    { text: "Do not fear, for I am with you.", ref: "Isaiah 41:10" },
+    { text: "Rejoice in the Lord always.", ref: "Philippians 4:4" },
+    { text: "The Lord is my light and my salvation.", ref: "Psalm 27:1" }
+  ];
+  
+  // Use the day of month to pick a fallback
+  const dayOfMonth = new Date().getDate();
+  const verse = fallbackVerses[(dayOfMonth - 1) % fallbackVerses.length];
+  
+  verseEl.textContent = verse.text;
+  refEl.textContent = `— ${verse.ref}`;
+  
+  verseEl.classList.remove('fade');
+  void verseEl.offsetWidth;
+  verseEl.classList.add('fade');
+  
+  console.log('📖 Using fallback verse (API failed)');
 }
 
 // ===== 🔥 STREAK LOGIC =====
