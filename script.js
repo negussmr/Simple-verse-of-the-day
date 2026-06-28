@@ -1,6 +1,6 @@
-// ===== 📖 REAL VERSE OF THE DAY (Forces fresh verse daily) =====
+// ===== 📖 NIV VERSE OF THE DAY (YouVersion API - No Key Required) =====
 
-// ===== FETCH REAL VERSE OF THE DAY =====
+// ===== FETCH NIV VERSE OF THE DAY =====
 async function fetchVerse() {
   const verseEl = document.getElementById('verseText');
   const refEl = document.getElementById('verseRef');
@@ -10,110 +10,57 @@ async function fetchVerse() {
   refEl.textContent = '—';
   
   try {
-    // Use day of year to pick a different API source each day
-    const today = new Date();
-    const dayOfYear = Math.floor((today - new Date(today.getFullYear(), 0, 0)) / (1000 * 60 * 60 * 24));
-    
-    // List of FREE APIs that return different verses
-    const apis = [
-      {
-        // OurManna - Verse of the Day
-        url: 'https://beta.ourmanna.com/api/v1/get/?format=json',
-        parse: (data) => {
-          if (data && data.verse && data.verse.details) {
-            return {
-              text: data.verse.details.text,
-              ref: data.verse.details.reference
-            };
-          }
-          return null;
-        }
-      },
-      {
-        // GetBible.net - Verse of the Day (different source)
-        url: 'https://getbible.net/votd/json',
-        parse: (data) => {
-          if (data && data.verse) {
-            return {
-              text: data.verse,
-              ref: data.reference
-            };
-          }
-          return null;
-        }
-      },
-      {
-        // DailyVerse - Another free API
-        url: 'https://dailyverse.vercel.app/api/verse',
-        parse: (data) => {
-          if (data && data.verse) {
-            return {
-              text: data.verse,
-              ref: data.reference || 'Unknown'
-            };
-          }
-          return null;
-        }
-      }
-    ];
-    
-    // Pick a different API each day (rotates through them)
-    const apiIndex = dayOfYear % apis.length;
-    const selectedApi = apis[apiIndex];
-    
-    console.log(`📖 Day ${dayOfYear}: Trying API ${apiIndex + 1} of ${apis.length}`);
-    console.log('📖 URL:', selectedApi.url);
-    
-    const response = await fetch(selectedApi.url);
+    // YouVersion API - Returns NIV Verse of the Day
+    const response = await fetch('https://youversion-api.glitch.me/v1/votd');
     
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
     
     const data = await response.json();
-    const verseData = selectedApi.parse(data);
+    console.log('📖 API Response:', data);
     
-    if (verseData && verseData.text && verseData.text !== 'undefined' && verseData.text.length > 0) {
+    if (data && data.passage && data.citation) {
       // Display the verse
-      verseEl.textContent = verseData.text;
-      refEl.textContent = `— ${verseData.ref}`;
+      verseEl.textContent = data.passage;
+      refEl.textContent = `— ${data.citation}`;
       
       // Animate
       verseEl.classList.remove('fade');
       void verseEl.offsetWidth;
       verseEl.classList.add('fade');
       
-      console.log('✅ Displayed:', verseData.ref);
+      console.log('✅ NIV Verse loaded:', data.citation);
     } else {
-      throw new Error('No verse data');
+      throw new Error('No verse data in response');
     }
     
   } catch (error) {
-    console.error('❌ Error:', error);
+    console.error('❌ Error fetching verse:', error);
     useFallbackVerse();
   }
 }
 
-// ===== 📚 FALLBACK (Only used if ALL APIs fail) =====
+// ===== 📚 FALLBACK (Only used if API fails) =====
 function useFallbackVerse() {
   const verseEl = document.getElementById('verseText');
   const refEl = document.getElementById('verseRef');
   
   // These are ONLY used if the API completely fails
   const fallbackVerses = [
-    { text: "The Lord is my shepherd; I shall not want.", ref: "Psalm 23:1" },
-    { text: "For God so loved the world that He gave His only Son.", ref: "John 3:16" },
-    { text: "I can do all things through Christ who strengthens me.", ref: "Philippians 4:13" },
-    { text: "Be still, and know that I am God.", ref: "Psalm 46:10" },
-    { text: "The Lord bless you and keep you.", ref: "Numbers 6:24" },
-    { text: "Your word is a lamp to my feet and a light to my path.", ref: "Psalm 119:105" },
-    { text: "Love is patient, love is kind.", ref: "1 Corinthians 13:4" },
-    { text: "Do not fear, for I am with you.", ref: "Isaiah 41:10" },
-    { text: "Rejoice in the Lord always.", ref: "Philippians 4:4" },
-    { text: "The Lord is my light and my salvation.", ref: "Psalm 27:1" }
+    { text: "The Lord is my shepherd; I shall not want.", ref: "Psalm 23:1 (NIV)" },
+    { text: "For God so loved the world that He gave His only Son.", ref: "John 3:16 (NIV)" },
+    { text: "I can do all things through Christ who strengthens me.", ref: "Philippians 4:13 (NIV)" },
+    { text: "Be still, and know that I am God.", ref: "Psalm 46:10 (NIV)" },
+    { text: "The Lord bless you and keep you.", ref: "Numbers 6:24 (NIV)" },
+    { text: "Your word is a lamp to my feet and a light to my path.", ref: "Psalm 119:105 (NIV)" },
+    { text: "Love is patient, love is kind.", ref: "1 Corinthians 13:4 (NIV)" },
+    { text: "Do not fear, for I am with you.", ref: "Isaiah 41:10 (NIV)" },
+    { text: "Rejoice in the Lord always.", ref: "Philippians 4:4 (NIV)" },
+    { text: "The Lord is my light and my salvation.", ref: "Psalm 27:1 (NIV)" }
   ];
   
-  // Use the day of month to pick a fallback
+  // Use day of month to pick a fallback
   const dayOfMonth = new Date().getDate();
   const verse = fallbackVerses[(dayOfMonth - 1) % fallbackVerses.length];
   
